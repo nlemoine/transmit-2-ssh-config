@@ -82,41 +82,15 @@ const syncFavorites = (args, options, logger) => {
     const favoriteSlug = (0, _slugg2.default)(collectionName.text()) + '/' + (0, _slugg2.default)(name) + '[tf-' + id + ']';
 
     const favorite = {
-      type: 1,
-      param: 'Host',
-      separator: ' ',
-      value: favoriteSlug,
-      before: '',
-      after: '\n\t',
-      config: [{
-        type: 1,
-        param: 'HostName',
-        value: server,
-        separator: ' ',
-        before: '',
-        after: '\n\t'
-      }, {
-        type: 1,
-        param: 'User',
-        value: user,
-        separator: ' ',
-        before: '',
-        after: port ? '\n\t' : '\n\n'
-      }]
+      Host: favoriteSlug,
+      HostName: server,
+      User: user
     };
     if (port) {
-      favorite.config.push({
-        type: 1,
-        param: 'Port',
-        value: port,
-        separator: ' ',
-        before: '',
-        after: '\n\n'
-      });
+      favorite.Port = port;
     }
 
     favorites.push(favorite);
-    console.log(_chalk2.default.blue(`Adding ${favoriteSlug} - ${server}`));
   });
 
   if (!favorites.length) {
@@ -140,7 +114,10 @@ const syncFavorites = (args, options, logger) => {
   });
 
   // Merge SSH config objects & Transmit favorites
-  sshConfig = sshConfig.concat(favorites);
+  favorites.forEach(favorite => {
+    sshConfig.append(favorite);
+    console.log(_chalk2.default.blue(`Adding ${favorite.Host} - ${favorite.HostName}`));
+  });
 
   // Write file
   _fs2.default.writeFileSync(sshConfigFile, _sshConfig2.default.stringify(sshConfig));
