@@ -1,6 +1,6 @@
 {
   "name": "transmit-2-ssh-config",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sync Transmit SFTP favorites with your SSH config file",
   "license": "MIT",
   "repository": "nlemoine/transmit-2-ssh-config",
