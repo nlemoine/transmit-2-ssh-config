@@ -32,7 +32,7 @@ t2sc
 
 ##### `-f`, `--file`
 
-Custom favorites file location. 
+Custom favorites file location.
 If no file is specified, the script will get it from its default location: `~/Library/Application Support/Transmit/Favorites/Favorites.xml`
 
 ## Additional notes
@@ -45,7 +45,7 @@ If no file is specified, the script will get it from its default location: `~/Li
 
 ### SSH config completion
 
-I strongly recommend, if not using it already, to add this line to your `.bash_profile`: 
+I strongly recommend, if not using it already, to add this line to your `.bash_profile`:
 
 ```bash
 # Add tab completion for SSH hostnames based on ~/.ssh/config, ignoring wildcards
@@ -77,7 +77,7 @@ And will appear as shown above in [Shuttle](http://fitztrev.github.io/shuttle/):
 
 ![Transmit SFTP favorites SSH config](http://benkey.free.fr/transmit-to-sshconfig.png)
 
-[tf-zXXX] suffix is added to allow Transmit favorites recognition. 
+[tf-zXXX] suffix is added to allow Transmit favorites recognition.
 
 ## License
 
