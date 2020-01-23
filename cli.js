@@ -9,11 +9,98 @@ const SSHConfig = require('ssh-config');
 const fs = require('fs');
 const path = require('path');
 const slugify = require('@sindresorhus/slugify');
+const deepEqual = require('deep-equal')
 
 const cli = meow(`
 	Usage
 	  $ t2sc
 `);
+
+/**
+ * Get favorite ID
+ * @param {Object} favorite
+ */
+const getFavoriteId = favorite => {
+	if (favorite.param !== 'Host') {
+		return false;
+	}
+	if (!favorite.hasOwnProperty('config') && favorite.config.length === 0) {
+		return false;
+	}
+
+	const transmitIdPattern = /^#[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}$/;
+	let id = false;
+	favorite.config.forEach(line => {
+		if (line.type !== SSHConfig.COMMENT) {
+			return;
+		}
+
+		if (!transmitIdPattern.test(line.content)) {
+			return;
+		}
+		id = line.content;
+	});
+	return id;
+}
+
+/**
+ * Get Host
+ * @param {Object} favorite
+ */
+const getHost = favorite => {
+	if (favorite.param !== 'Host') {
+		return false;
+	}
+	return favorite.value;
+}
+
+/**
+ * Get favorite param
+ * @param {Object} favorite
+ * @param {String} param
+ */
+const getParam = (favorite, param) => {
+	if (!favorite.hasOwnProperty('config') && favorite.config.length === 0) {
+		return false;
+	}
+	let value = false;
+	favorite.config.forEach(line => {
+		if (line.type !== SSHConfig.DIRECTIVE) {
+			return;
+		}
+		if (line.param !== param) {
+			return;
+		}
+		value = line.value;
+	});
+	return value;
+}
+
+/**
+ * Get favorite param
+ * @param {Object} favorite
+ * @param {String} param
+ */
+const sanitizeFavorite = favorite => {
+	const f = JSON.parse(JSON.stringify(favorite));
+	delete f.before;
+	delete f.after;
+	delete f.separator;
+	f.config.forEach(line => {
+		delete line.before;
+		delete line.after;
+		delete line.separator;
+	});
+	return f;
+}
+
+/**
+ * Get host log
+ * @param {Object} favorite
+ */
+const getHostLog = favorite => {
+	return `${getParam(favorite, 'User')}@${getParam(favorite, 'HostName')} [${getHost(favorite)}]`;
+}
 
 (async () => {
 
@@ -33,7 +120,7 @@ const cli = meow(`
 	const favorites = favoritesRaw
 		.map(f => {
 			return {
-				name: `${slugify(f[0])}-[${f[6]}]`,
+				name: `${slugify(f[0])}`,
 				address: f[1],
 				username: f[2],
 				port: f[3],
@@ -61,30 +148,120 @@ const cli = meow(`
 
 	let config = SSHConfig.parse(SSHConfigContents);
 
-	// Remove every Transmit favorites from existing ssh config
-	config = config.filter((line) => {
-		if (line.param !== 'Host') {
-			return true;
+	// Get favorites from Transmit
+	const favoritesFromTransmit = favorites.map((f, i) => {
+		let favorite = `Host ${f.name}
+  #${f.id}
+  HostName ${f.address}
+  User ${f.username}
+`;
+		if (f.port) {
+			favorite += `  Port ${f.port}\n`;
 		}
-		return !/-\[[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}\]$/.test(line.value);
+		favorite += '\n';
+		const favoriteParsed = SSHConfig.parse(favorite);
+
+		return favoriteParsed[0];
 	});
 
-	// Merge SSH config objects & Transmit favorites
-	favorites.forEach(f => {
-		const favorite = {
-			Host: f.name,
-			HostName: f.address,
-			User: f.username
-		};
-		if (f.port) {
-			favorite.Port = f.port;
+	const counts = {
+		'deleted': 0,
+		'updated': 0,
+		'added': 0,
+	};
+
+	// Delete
+	config.forEach((fc, i) => {
+		const fcId = getFavoriteId(fc);
+		if (!fcId) {
+			return false;
 		}
-		config.append(favorite);
-		console.log(`${chalk.green('✓')} Adding ${favorite.Host} - ${favorite.HostName}`);
+		const removeFavorite = favoritesFromTransmit.every(ft => {
+			const ftId = getFavoriteId(ft);
+			if (fcId !== ftId) {
+				return true;
+			}
+			return false;
+		});
+
+		if (removeFavorite) {
+			counts['deleted'] += 1;
+			console.log(`${chalk.red('✓')} Removing ${getHostLog(fc)}`);
+			config.splice(i, 1);
+		}
+	});
+
+	// Update
+	favoritesFromTransmit.forEach((ft, i) => {
+		const ftId = getFavoriteId(ft);
+		const updateFavorite = config.some(fc => {
+			const fcId = getFavoriteId(fc);
+			if (!fcId) {
+				return false;
+			}
+			if (fcId === ftId && !deepEqual(sanitizeFavorite(ft), sanitizeFavorite(fc))) {
+				return true;
+			}
+		});
+
+		if (updateFavorite) {
+			console.log(`${chalk.blue('✓')} Updating ${getHostLog(ft)}`);
+			counts['updated'] += 1;
+			config.forEach((fc, k) => {
+				const fcId = getFavoriteId(fc);
+				if (ftId === fcId) {
+					config[k] = ft;
+				}
+			});
+		}
+	});
+
+	// Add
+	favoritesFromTransmit.forEach((ft, i) => {
+		const ftId = getFavoriteId(ft);
+		const addFavorite = config.every(fc => {
+			const fcId = getFavoriteId(fc);
+			if (!fcId) {
+				return true;
+			}
+			return fcId !== ftId;
+		});
+
+		if (addFavorite) {
+			counts['added'] += 1;
+			console.log(`${chalk.green('✓')} Adding ${getHostLog(ft)}`);
+			config.push(ft);
+		}
+
 	});
 
 	await fs.promises.writeFile(sshConfigFile, SSHConfig.stringify(config));
 
-	console.log(chalk.green.bold(`\n✓ ${favorites.length} Transmit favorites have been successfully added to your ~/.ssh/config file.\n`));
+	// Summary
+	Object.keys(counts)
+		.forEach(key => {
+			if (counts[key] === 0) {
+				return;
+			}
+			console.log(chalk.green.bold(`\n✓ ${counts[key]} Transmit favorites have been successfully ${key} in your SSH config file.`));
+		});
+
+	// Nothing happened
+	const nothing = Object.keys(counts).every(key => counts[key] === 0);
+	if (nothing) {
+		console.log(chalk.blue.bold(`\n✓ No Transmit favorites to add, update or delete.\n`));
+	}
+
+	// Quit Transmit
+	try {
+		favoritesRaw = await appleScriptPromise.default.execString(`tell application "Transmit"
+	quit
+end tell`);
+	} catch (error) {
+		console.error(chalk.red(`\n${error}\n`));
+		process.exit(1);
+	}
+
+	process.exit(1);
 
 })();
