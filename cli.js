@@ -254,7 +254,7 @@ const getHostLog = favorite => {
 
 	// Quit Transmit
 	try {
-		favoritesRaw = await appleScriptPromise.default.execString(`tell application "Transmit"
+		await appleScriptPromise.default.execString(`tell application "Transmit"
 	quit
 end tell`);
 	} catch (error) {
