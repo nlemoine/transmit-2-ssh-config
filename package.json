@@ -1,6 +1,6 @@
 {
 	"name": "transmit-2-ssh-config",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"description": "Synchronize Transmit 5 SFTP favorites with your SSH config file",
 	"license": "MIT",
 	"repository": "nlemoine/transmit-2-ssh-config",
@@ -15,9 +15,6 @@
 	"engines": {
 		"node": ">=11"
 	},
-	"files": [
-		"cli.js"
-	],
 	"keywords": [
 		"transmit",
 		"ssh",
