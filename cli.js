@@ -105,10 +105,11 @@ const getHostLog = favorite => {
 (async () => {
 
 	const spinner = ora('Fetching Transmit favorites...').start();
+	const appleScript = path.join(__dirname, 'favorites.applescript');
 
 	let favoritesRaw;
 	try {
-		favoritesRaw = await appleScriptPromise.default.execFile('favorites.applescript');
+		favoritesRaw = await appleScriptPromise.default.execFile(appleScript);
 	} catch (error) {
 		spinner.stop();
 		console.error(chalk.red(`\n${error}\n`));
