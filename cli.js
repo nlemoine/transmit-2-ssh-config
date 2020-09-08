@@ -105,6 +105,9 @@ const getHostLog = favorite => {
 (async () => {
 
 	const spinner = ora('Fetching Transmit favorites...').start();
+
+	const appStatus = await appleScriptPromise.default.execString('application "Transmit" is running');
+
 	const appleScript = path.join(__dirname, 'favorites.applescript');
 
 	let favoritesRaw;
@@ -253,16 +256,18 @@ const getHostLog = favorite => {
 		console.log(chalk.blue.bold(`\n✓ No Transmit favorites to add, update or delete.\n`));
 	}
 
-	// Quit Transmit
-	try {
-		await appleScriptPromise.default.execString(`tell application "Transmit"
-	quit
-end tell`);
-	} catch (error) {
-		console.error(chalk.red(`\n${error}\n`));
-		process.exit(1);
+	// Quit Transmit if it was not running at launch
+	if (!appStatus) {
+		try {
+			await appleScriptPromise.default.execString(`tell application "Transmit"
+		quit
+	end tell`);
+		} catch (error) {
+			console.error(chalk.red(`\n${error}\n`));
+			process.exit(1);
+		}
 	}
 
-	process.exit(1);
+	process.exit(0);
 
 })();
