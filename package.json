@@ -21,13 +21,12 @@
     "ssh-config"
   ],
   "dependencies": {
-    "@sindresorhus/slugify": "^0.10.1",
+    "@sindresorhus/slugify": "^1.1.0",
     "applescript-promise": "^0.0.6",
-    "chalk": "^3.0.0",
-    "deep-equal": "^2.0.3",
-    "meow": "^5.0.0",
-    "ora": "^4.1.1",
-    "slug": "^2.1.1",
+    "chalk": "^4.1.0",
+    "deep-equal": "^2.0.4",
+    "meow": "^7.1.1",
+    "ora": "^5.1.0",
     "ssh-config": "^4.0.4"
   },
   "devDependencies": {

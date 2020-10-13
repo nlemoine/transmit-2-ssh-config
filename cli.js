@@ -239,6 +239,17 @@ const getHostLog = favorite => {
 
     });
 
+    // Sort
+    config.sort((a, b) => {
+        let comparison = 0;
+        if (a.value > b.value) {
+            comparison = 1;
+        } else if (a.value < b.value) {
+            comparison = -1;
+        }
+        return comparison;
+    });
+
     await fs.promises.writeFile(sshConfigFile, SSHConfig.stringify(config));
 
     // Summary
