@@ -37,7 +37,7 @@ t2sc
 
 ## Caveats
 
-- Since Transmit 5, you can't get folders so beware to have unique `Host` names.
+Since Transmit 5, you can't get favorite folders so beware to have unique `Host` names. Since 2.0.0, you can manually add a slash to your favorite to mimick folders.
 
 ## Third party stuff to consider
 
@@ -49,7 +49,7 @@ I strongly recommend, if not using it already, to add this line to your `.bash_p
 # Add tab completion for SSH hostnames based on ~/.ssh/config, ignoring wildcards
 [ -e "$HOME/.ssh/config" ] && complete -o "default" -o "nospace" -W "$(grep "^Host" ~/.ssh/config | grep -v "[?*]" | cut -d " " -f2- | tr ' ' '\n')" scp sftp ssh;
 ```
-Taken from famous [Mathias’s dotfiles](https://github.com/mathiasbynens/dotfiles/blob/master/.bash_profile#L40-L41)
+Taken from famous [Mathias’s dotfiles](https://github.com/mathiasbynens/dotfiles/blob/5368015b53467949c36f1e386582ac066b0d0ae6/.bash_profile#L42-L43)
 
 ### Shuttle
 
