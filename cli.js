@@ -25,7 +25,7 @@ const cli = meow(
 
 const transmitFavoritesScript = `
 tell application "Transmit"
-	set the_list to {}
+	set favoriteItems to {}
 	set listSize to count of favorites
 	repeat with counter from 1 to listSize
 		set fav to {}
@@ -36,9 +36,42 @@ tell application "Transmit"
 		set end of fav to protocol of item counter of favorites as string
 		set end of fav to remote path of item counter of favorites
 		set end of fav to identifier of item counter of favorites
-		set end of the_list to fav
+		set end of favoriteItems to fav
 	end repeat
-	the_list
+	favoriteItems
+end tell`;
+
+const transmitFavoritesFoldersScript = `
+tell application "System Events"
+	set menuItems to every menu item of menu 1 of menu bar item 8 of menu bar 1 of process "Transmit"
+	set favoritesFolders to {}
+	set separators to {}
+	repeat with menuItem in menuItems
+		set favFolder to {}
+		set menuTilte to title of menuItem
+		if menuTilte = "" then
+			set end of separators to menuTilte
+		end if
+		-- Only get favorites, after the second separator
+		if count of separators > 2 then exit repeat
+
+		-- Get sub menus
+		set subMenuItemsCount to count of menu items of menu of menuItem
+		if subMenuItemsCount >= 1 then
+			set subMenuItems to every menu item of menu 1 of menuItem
+			set end of favFolder to menuTilte
+			set menuChildren to {}
+			repeat with subMenuItem in subMenuItems
+				set subMenuTilte to title of subMenuItem
+				-- Exit repeat before "Open in tabs"
+				if subMenuTilte is equal to "" then exit repeat
+				set end of menuChildren to subMenuTilte
+			end repeat
+			set end of favFolder to menuChildren
+			set end of favoritesFolders to favFolder
+		end if
+	end repeat
+	favoritesFolders
 end tell`;
 
 const execStringPromise = util.promisify(execString);
@@ -160,6 +193,30 @@ const getHostLog = (favorite) => {
 };
 
 /**
+ * Get favorite folder name
+ * @param {String} favorite
+ * @param {Array} folder
+ */
+const getFavoriteFolderName = (favoriteName, folders) => {
+  for(let i = 0; i < folders.length; i++) {
+    /**
+     * Folder name
+     * @type {String}
+     */
+    const folderName = folders[i][0];
+    /**
+     * Folder favorites
+     * @type {Array}
+     */
+    const folderFavorites = folders[i][1];
+    if(folderFavorites.includes(favoriteName)) {
+      return folderName;
+    }
+  }
+  return null;
+}
+
+/**
  * Get Transmit favorites
  *
  * @returns {Array}
@@ -170,10 +227,14 @@ const getTransmitFavorites = async () => {
     return [];
   }
 
+  const folders = await execStringPromise(transmitFavoritesFoldersScript);
+
   const favorites = favoritesRaw
     .map((f) => {
+      const folderName = Array.isArray(folders) ? getFavoriteFolderName(f[0], folders) : null;
+      const name = folderName ? `${folderName}/${f[0]}` : f[0];
       return {
-        name: `${f[0]
+        name: `${name
           .split('/')
           .map((p) => slugify(p))
           .join('/')}`,
