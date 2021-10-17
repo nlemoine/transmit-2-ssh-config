@@ -37,7 +37,7 @@ t2sc
 
 ## Caveats
 
-Since Transmit 5, you can't get favorite folders so beware to have unique `Host` names. Since 2.0.0, you can manually add a slash to your favorite to mimick folders.
+Since Transmit 5, [getting favorites folders is made a hacky and dirty way through AppleScript](https://github.com/nlemoine/transmit-2-ssh-config/blob/master/favorites-folders.applescript). This, it's far less less reliable than it used to be in Transmit 4. There might some (edges) cases where it fails, for example, if you have a favorite with the same name in two different folders. Global advice to avoid that kind of situation: have unique folder and favorites names.
 
 ## Third party stuff to consider
 
