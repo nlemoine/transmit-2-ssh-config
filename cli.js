@@ -1,423 +1,184 @@
 #!/usr/bin/env node
 
-import fs from 'node:fs';
-import path from 'node:path';
-import util from 'node:util';
-import meow from 'meow';
-import ora from 'ora';
-import consola from 'consola';
-import chalk from 'chalk';
-import SSHConfig from 'ssh-config';
-import slugify from '@sindresorhus/slugify';
+import { intro, outro, spinner, log, note } from '@clack/prompts';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { chmod, readFile, writeFile } from 'node:fs/promises';
+import SSHConfig, { parse } from 'ssh-config';
 import deepEqual from 'deep-equal';
-import { runAppleScript } from 'run-applescript';
-import { execString } from 'applescript';
+import { ZodError } from 'zod';
 
-const cli = meow(
-  `
-	Usage
-	  $ t2sc
-`,
-  {
-    importMeta: import.meta,
-  }
-);
+import getTransmitFavorites from './src/transmit.js';
+import { getFavoriteId, normalizeFavorite, favoriteToSshConfig, formatFavorite } from './src/favorite.js';
+import { addIncludeDirective, ensureDirectoryExists } from './src/sshconfig.js';
 
-const transmitFavoritesScript = `
-tell application "Transmit"
-	set favoriteItems to {}
-	set listSize to count of favorites
-	repeat with counter from 1 to listSize
-		set fav to {}
-		set end of fav to name of item counter of favorites
-		set end of fav to address of item counter of favorites
-		set end of fav to user name of item counter of favorites
-		set end of fav to port of item counter of favorites
-		set end of fav to protocol of item counter of favorites as string
-		set end of fav to remote path of item counter of favorites
-		set end of fav to identifier of item counter of favorites
-		set end of favoriteItems to fav
-	end repeat
-	favoriteItems
-end tell`;
+// Welcome message
+intro('Transmit → SSH Config Sync');
 
-const transmitFavoritesFoldersScript = `
-tell application "System Events"
-	set menuItems to every menu item of menu 1 of menu bar item 8 of menu bar 1 of process "Transmit"
-	set favoritesFolders to {}
-	set separators to {}
-	repeat with menuItem in menuItems
-		set favFolder to {}
-		set menuTilte to title of menuItem
-		if menuTilte = "" then
-			set end of separators to menuTilte
-		end if
-		-- Only get favorites, after the second separator
-		if count of separators > 2 then exit repeat
+// Ensure SSH directories exist with proper permissions
+const sshDir = join(homedir(), '.ssh');
+const sshConfigDDir = join(sshDir, 'config.d');
 
-		-- Get sub menus
-		set subMenuItemsCount to count of menu items of menu of menuItem
-		if subMenuItemsCount >= 1 then
-			set subMenuItems to every menu item of menu 1 of menuItem
-			set end of favFolder to menuTilte
-			set menuChildren to {}
-			repeat with subMenuItem in subMenuItems
-				set subMenuTilte to title of subMenuItem
-				-- Exit repeat before "Open in tabs"
-				if subMenuTilte is equal to "" then exit repeat
-				set end of menuChildren to subMenuTilte
-			end repeat
-			set end of favFolder to menuChildren
-			set end of favoritesFolders to favFolder
-		end if
-	end repeat
-	favoritesFolders
-end tell`;
+try {
+	const sshDirResult = await ensureDirectoryExists(sshDir, 0o700);
+	const configDirResult = await ensureDirectoryExists(sshConfigDDir, 0o700);
 
-const execStringPromise = util.promisify(execString);
+	// Show details with appropriate log methods
+	if (sshDirResult.created) {
+		log.success(`Created ${sshDirResult.path}`);
+	}
 
-// Get SSH config path
-const sshConfigFile = path.join(process.env['HOME'], '.ssh', 'config');
-
-/**
- * Get favorite ID
- * @param {Object} favorite
- */
-const getFavoriteId = (favorite) => {
-  if (favorite.param !== 'Host') {
-    return false;
-  }
-  if (!favorite.hasOwnProperty('config') && favorite.config.length === 0) {
-    return false;
-  }
-
-  const transmitIdPattern =
-    /^#[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}$/;
-  let id = false;
-  favorite.config.forEach((line) => {
-    if (line.type !== SSHConfig.COMMENT) {
-      return;
-    }
-
-    if (!transmitIdPattern.test(line.content)) {
-      return;
-    }
-    id = line.content;
-  });
-  return id;
-};
-
-/**
- * Get Host
- * @param {Object} favorite
- */
-const getHost = (favorite) => {
-  if (favorite.param !== 'Host') {
-    return false;
-  }
-  return favorite.value;
-};
-
-/**
- * Get favorite param
- * @param {Object} favorite
- * @param {String} param
- */
-const getParam = (favorite, param) => {
-  if (!favorite.hasOwnProperty('config') && favorite.config.length === 0) {
-    return false;
-  }
-  let value = false;
-  favorite.config.forEach((line) => {
-    if (line.type !== SSHConfig.DIRECTIVE) {
-      return;
-    }
-    if (line.param !== param) {
-      return;
-    }
-    value = line.value;
-  });
-  return value;
-};
-
-/**
- * Get favorite param
- * @param {Object} favorite
- * @param {String} param
- */
-const sanitizeFavorite = (favorite) => {
-  const f = JSON.parse(JSON.stringify(favorite));
-  delete f.before;
-  delete f.after;
-  delete f.separator;
-  f.config.forEach((line) => {
-    delete line.before;
-    delete line.after;
-    delete line.separator;
-  });
-  return f;
-};
-
-/**
- * Get the SSH config items
- *
- * @returns {Array}
- */
-const getSSHConfig = async (configFile) => {
-  // Check if SSH config is readable/writable
-  try {
-    await fs.promises.access(configFile, fs.constants.R_OK | fs.constants.W_OK);
-  } catch (error) {
-    console.error(chalk.red(`Could not read/write ${configFile}`));
-    process.exit(1);
-  }
-
-  try {
-    const SSHConfigContents = await fs.promises.readFile(configFile, 'utf8');
-    return SSHConfig.parse(SSHConfigContents);
-  } catch (error) {
-    console.error(chalk.red(`${error.message}`));
-    process.exit(1);
-  }
-};
-
-/**
- * Get host log
- * @param {Object} favorite
- */
-const getHostLog = (favorite) => {
-  return `${getParam(favorite, 'User')}@${getParam(
-    favorite,
-    'HostName'
-  )} [${getHost(favorite)}]`;
-};
-
-/**
- * Get favorite folder name
- * @param {String} favorite
- * @param {Array} folder
- */
-const getFavoriteFolderName = (favoriteName, folders) => {
-  for(let i = 0; i < folders.length; i++) {
-    /**
-     * Folder name
-     * @type {String}
-     */
-    const folderName = folders[i][0];
-    /**
-     * Folder favorites
-     * @type {Array}
-     */
-    const folderFavorites = folders[i][1];
-    if(folderFavorites.includes(favoriteName)) {
-      return folderName;
-    }
-  }
-  return null;
+	if (configDirResult.created) {
+		log.success(`Created ${configDirResult.path}`);
+	}
+} catch (error) {
+	log.error(`Failed to setup SSH directories: ${error.message}`);
+	outro('Setup failed');
+	process.exit(1);
 }
 
-/**
- * Get Transmit favorites
- *
- * @returns {Array}
- */
-const getTransmitFavorites = async () => {
-  const favoritesRaw = await execStringPromise(transmitFavoritesScript);
-  if (!favoritesRaw) {
-    return [];
-  }
+const transmitSshConfigPath = join(homedir(), '.ssh', 'config.d', 'transmit');
 
-  const folders = await execStringPromise(transmitFavoritesFoldersScript);
+let transmitSshConfig = new SSHConfig.default();
 
-  const favorites = favoritesRaw
-    .map((f) => {
-      const folderName = Array.isArray(folders) ? getFavoriteFolderName(f[0], folders) : null;
-      const name = folderName ? `${folderName}/${f[0]}` : f[0];
-      return {
-        name: `${name
-          .split('/')
-          .map((p) => slugify(p))
-          .join('/')}`,
-        address: f[1],
-        username: f[2],
-        port: f[3],
-        protocol: f[4],
-        remote_path: f[5] === 'missing value' ? null : f[5],
-        id: f[6],
-      };
-    })
-    .filter((f) => f.protocol === 'SFTP');
+// Read existing config or create if doesn't exist
+try {
+	transmitSshConfig = parse(
+		await readFile(transmitSshConfigPath, 'utf8'),
+	);
+} catch (error) {
+	if (error.code === 'ENOENT') {
+		// File doesn't exist, create it
+		try {
+			await writeFile(transmitSshConfigPath, '', 'utf8');
+			await chmod(transmitSshConfigPath, 0o600);
+		} catch (createError) {
+			log.error(`Failed to create SSH config file: ${createError.message}`);
+			outro('Setup failed');
+			process.exit(1);
+		}
+	} else {
+		// File exists but not readable
+		log.error(`Error reading SSH config file: ${error.message}`);
+		outro('Read failed');
+		process.exit(1);
+	}
+}
 
-  return favorites;
+// Fetch Transmit favorites
+const fetchSpinner = spinner();
+fetchSpinner.start('Fetching Transmit favorites');
+
+let transmitFavorites = [];
+try {
+	transmitFavorites = await getTransmitFavorites();
+	fetchSpinner.stop(`Found ${transmitFavorites.length} favorite${transmitFavorites.length !== 1 ? 's' : ''}`);
+} catch (error) {
+	fetchSpinner.stop('Failed to fetch Transmit favorites', 1);
+	if (error instanceof ZodError) {
+		log.error('Invalid favorite data found:');
+		for (const issue of error.issues) {
+			log.error(`  ${issue.path.join('.')}: ${issue.message}`);
+		}
+	} else {
+		log.error(`Error: ${error.message}`);
+	}
+	outro('Fetch failed');
+	process.exit(1);
+}
+
+// Convert transmit favorites to ssh config
+const favoritesSshConfig = new SSHConfig.default();
+favoritesSshConfig.push(...transmitFavorites.map(favoriteToSshConfig));
+
+// Write ssh config file
+try {
+	await writeFile(transmitSshConfigPath, favoritesSshConfig.toString(), 'utf8');
+	// Set proper permissions on the transmit config file
+	await chmod(transmitSshConfigPath, 0o600);
+	log.success(`Saved to ${transmitSshConfigPath}`);
+} catch (error) {
+	log.error(`Error: ${error.message}`);
+	outro('Write failed');
+	process.exit(1);
+}
+
+// Get Ids from transmit and ssh config
+const favoritesIds = favoritesSshConfig.map(getFavoriteId);
+const transmitSshConfigIds = transmitSshConfig.map(getFavoriteId);
+
+const report = {
+	added: favoritesSshConfig.filter(
+		(c) => !transmitSshConfigIds.includes(getFavoriteId(c)),
+	),
+	deleted: transmitSshConfig.filter(
+		(c) => !favoritesIds.includes(getFavoriteId(c)),
+	),
+	updated: favoritesSshConfig.filter((c) => {
+		const id = getFavoriteId(c);
+		if (!transmitSshConfigIds.includes(id)) {
+			return false;
+		}
+
+		return !deepEqual(
+			normalizeFavorite(c),
+			normalizeFavorite(
+				transmitSshConfig[transmitSshConfigIds.indexOf(id)] || {},
+			),
+		);
+	}),
 };
 
-(async () => {
-  const spinner = ora('Fetching Transmit favorites...').start();
+// Display sync summary
+const summaryLines = [];
 
-  const appStatus = await execStringPromise(
-    'application "Transmit" is running'
-  );
+if (report.added.length > 0) {
+	summaryLines.push(`Added (${report.added.length}):`);
+	report.added.forEach((fav) => {
+		summaryLines.push(`  + ${formatFavorite(fav)}`);
+	});
+}
 
-  let favorites = [];
-  try {
-    favorites = await getTransmitFavorites();
-  } catch (error) {
-    spinner.stop();
-    console.error(chalk.red(`\n${error}\n`));
-    process.exit(1);
-  }
-  spinner.stop();
+if (report.deleted.length > 0) {
+	if (summaryLines.length > 0) summaryLines.push('');
+	summaryLines.push(`Deleted (${report.deleted.length}):`);
+	report.deleted.forEach((fav) => {
+		summaryLines.push(`  - ${formatFavorite(fav)}`);
+	});
+}
 
-  // SFTP Favorites ?
-  if (!favorites.length) {
-    consola.warn(`No Transmit SFTP favorites were found`);
-    process.exit(1);
-  }
+if (report.updated.length > 0) {
+	if (summaryLines.length > 0) summaryLines.push('');
+	summaryLines.push(`Updated (${report.updated.length}):`);
+	report.updated.forEach((fav) => {
+		summaryLines.push(`  ~ ${formatFavorite(fav)}`);
+	});
+}
 
-  let config;
-  try {
-    await fs.promises.access(sshConfigFile, fs.constants.R_OK);
-    config = await getSSHConfig(sshConfigFile);
-  } catch (error) {
-    consola.info(
-      `No SSH config file was found, it will be created at: ${sshConfigFile}`
-    );
-    config = new SSHConfig();
-  }
+if (summaryLines.length === 0) {
+	summaryLines.push('No changes detected');
+}
 
-  // Convert favorites from Transmit into SSH config
-  const favoritesFromTransmit = favorites.map((f, i) => {
-    let favorite = `Host ${f.name}
-  #${f.id}
-  HostName ${f.address}
-  User ${f.username}
-`;
-    if (f.port) {
-      favorite += `  Port ${f.port}\n`;
-    }
-    favorite += '\n';
-    const favoriteParsed = SSHConfig.parse(favorite);
+note(summaryLines.join('\n'), 'Sync Summary');
 
-    return favoriteParsed[0];
-  });
+// Add Include directive to main SSH config
+const mainSshConfigFile = join(homedir(), '.ssh', 'config');
+try {
+	const includeResult = await addIncludeDirective(mainSshConfigFile);
 
-  const counts = {
-    deleted: 0,
-    updated: 0,
-    added: 0,
-  };
+	// Show details with appropriate log methods
+	if (includeResult.fileCreated) {
+		log.success(`Created ${includeResult.path}`);
+	}
+	if (includeResult.added) {
+		log.success('Added "Include config.d/*" directive');
+	}
+} catch (error) {
+	log.error(`Error: ${error.message}`);
+	outro('Update failed');
+	process.exit(1);
+}
 
-  // Delete
-  config.forEach((fc, i) => {
-    const fcId = getFavoriteId(fc);
-    if (!fcId) {
-      return false;
-    }
-    const removeFavorite = favoritesFromTransmit.every((ft) => {
-      const ftId = getFavoriteId(ft);
-      if (fcId !== ftId) {
-        return true;
-      }
-      return false;
-    });
+outro('Sync completed successfully!');
 
-    if (removeFavorite) {
-      counts['deleted'] += 1;
-      consola.warn(`Removed ${getHostLog(fc)}`);
-      config.splice(i, 1);
-    }
-  });
-
-  // Update
-  favoritesFromTransmit.forEach((ft, i) => {
-    const ftId = getFavoriteId(ft);
-    const updateFavorite = config.some((fc) => {
-      const fcId = getFavoriteId(fc);
-      if (!fcId) {
-        return false;
-      }
-      if (
-        fcId === ftId &&
-        !deepEqual(sanitizeFavorite(ft), sanitizeFavorite(fc))
-      ) {
-        return true;
-      }
-    });
-
-    if (updateFavorite) {
-      consola.info(`Updated ${getHostLog(ft)}`);
-      counts['updated'] += 1;
-      config.forEach((fc, k) => {
-        const fcId = getFavoriteId(fc);
-        if (ftId === fcId) {
-          config[k] = ft;
-        }
-      });
-    }
-  });
-
-  // Add
-  favoritesFromTransmit.forEach((ft, i) => {
-    const ftId = getFavoriteId(ft);
-    const addFavorite = config.every((fc) => {
-      const fcId = getFavoriteId(fc);
-      if (!fcId) {
-        return true;
-      }
-      return fcId !== ftId;
-    });
-
-    if (addFavorite) {
-      counts['added'] += 1;
-      consola.success(`Added ${getHostLog(ft)}`);
-      config.push(ft);
-    }
-  });
-
-  // Nothing happened
-  const nothing = Object.keys(counts).every((key) => counts[key] === 0);
-  if (nothing) {
-    consola.info(`No Transmit favorites to add, update or delete.`);
-  } else {
-    // Sort alphabetically
-    config.sort((a, b) => {
-      let comparison = 0;
-      if (a.value > b.value) {
-        comparison = 1;
-      } else if (a.value < b.value) {
-        comparison = -1;
-      }
-      return comparison;
-    });
-
-    // Write file
-    await fs.promises.writeFile(sshConfigFile, SSHConfig.stringify(config));
-
-    // Fix permissions
-    await fs.promises.chmod(sshConfigFile, 0o644);
-
-    // Summary
-    Object.keys(counts).forEach((key) => {
-      if (counts[key] === 0) {
-        return;
-      }
-      consola.success(
-        `${counts[key]} Transmit favorite${counts[key] > 1 ? 's' : ''} ${
-          counts[key] > 1 ? 'have' : 'has'
-        } been successfully ${key} in your SSH config file.`
-      );
-    });
-  }
-
-  // Quit Transmit if it was not running at launch
-  if (appStatus === 'false' || !appStatus) {
-    try {
-      await runAppleScript(`quit app "Transmit"`);
-    } catch (error) {
-      consola.error(error);
-      process.exit(1);
-    }
-  }
-
-  process.exit(0);
-})();
+process.exit(0);
