@@ -1,42 +1,69 @@
 {
-  "name": "transmit-2-ssh-config",
-  "version": "2.1.0",
-  "description": "Synchronize Transmit 5 SFTP favorites with your SSH config file",
-  "license": "MIT",
-  "repository": "nlemoine/transmit-2-ssh-config",
-  "author": {
-    "name": "Nicolas Lemoine",
-    "email": "nico@niconico.fr",
-    "url": "https://github.com/nlemoine"
-  },
-  "bin": {
-    "t2sc": "cli.js"
-  },
-  "type": "module",
-  "engines": {
-    "node": "^12.20.0 || ^14.13.1 || >=16.0.0"
-  },
-  "keywords": [
-    "transmit",
-    "ssh",
-    "ssh-config"
-  ],
-  "scripts": {
-    "lint:fix": "prettier --write cli.js"
-  },
-  "dependencies": {
-    "@sindresorhus/slugify": "^2.1.0",
-    "applescript": "^1.0.0",
-    "chalk": "^4.1.2",
-    "consola": "^2.15.3",
-    "deep-equal": "^2.0.5",
-    "meow": "^10.1.1",
-    "ora": "^6.0.1",
-    "run-applescript": "^6.0.0",
-    "ssh-config": "^4.0.6"
-  },
-  "devDependencies": {
-    "dumper.js": "^1.3.1",
-    "prettier": "^2.4.1"
-  }
+	"name": "transmit-2-ssh-config",
+	"version": "2.1.0",
+	"description": "Synchronize Transmit 5 SFTP favorites with your SSH config file",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/nlemoine/transmit-2-ssh-config.git"
+	},
+	"homepage": "https://github.com/nlemoine/transmit-2-ssh-config#readme",
+	"bugs": {
+		"url": "https://github.com/nlemoine/transmit-2-ssh-config/issues"
+	},
+	"author": {
+		"name": "Nicolas Lemoine",
+		"email": "nico@n5s.dev",
+		"url": "https://github.com/nlemoine"
+	},
+	"bin": {
+		"t2sc": "cli.js"
+	},
+	"type": "module",
+	"engines": {
+		"node": ">=20"
+	},
+	"os": [
+		"darwin"
+	],
+	"files": [
+		"cli.js",
+		"src/",
+		"license",
+		"readme.md"
+	],
+	"exports": {
+		".": "./src/transmit.js",
+		"./package.json": "./package.json"
+	},
+	"keywords": [
+		"transmit",
+		"ssh",
+		"ssh-config",
+		"sftp",
+		"macos",
+		"panic",
+		"cli",
+		"config",
+		"sync",
+		"automation"
+	],
+	"scripts": {
+		"deps:check": "find . -name package.json -not -path '*node_modules*' -execdir echo '=======================================' \\; -execdir pwd \\; -execdir depcheck --online \\;",
+		"fix": "biome lint --write ./src cli.js",
+		"prepare": "npm run fix",
+		"test": "node --test test/*.test.js"
+	},
+	"dependencies": {
+		"@clack/prompts": "^0.11.0",
+		"@sindresorhus/slugify": "^3.0.0",
+		"applescript": "^1.0.0",
+		"deep-equal": "^2.2.3",
+		"ssh-config": "^5.0.3",
+		"zod": "^4.1.12"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.4",
+		"depcheck": "^1.4.7"
+	}
 }
