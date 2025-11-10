@@ -5,7 +5,7 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/nlemoine/transmit-2-ssh-config.git"
+		"url": "git+https://github.com/nlemoine/transmit-2-ssh-config.git"
 	},
 	"homepage": "https://github.com/nlemoine/transmit-2-ssh-config#readme",
 	"bugs": {
