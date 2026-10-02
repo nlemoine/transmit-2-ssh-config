@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.2](https://github.com/nlemoine/transmit-2-ssh-config/compare/v3.0.1...v3.0.2) (2026-10-02)
+
+
+### Bug Fixes
+
+* read favorite folders from Transmit's store ([e185a29](https://github.com/nlemoine/transmit-2-ssh-config/commit/e185a2944ba22c12612762d968ee663dce396528))
+
 ## [3.0.1](https://github.com/nlemoine/transmit-2-ssh-config/compare/v3.0.0...v3.0.1) (2026-10-02)
 
 
