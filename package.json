@@ -21,7 +21,7 @@
 	},
 	"type": "module",
 	"engines": {
-		"node": ">=20"
+		"node": ">=22"
 	},
 	"os": [
 		"darwin"
@@ -55,15 +55,16 @@
 		"test": "node --test test/*.test.js"
 	},
 	"dependencies": {
-		"@clack/prompts": "^0.11.0",
-		"@sindresorhus/slugify": "^3.0.0",
+		"@clack/prompts": "^1.8.1",
+		"@sindresorhus/slugify": "^3.0.1",
 		"applescript": "^1.0.0",
 		"deep-equal": "^2.2.3",
-		"ssh-config": "^5.0.3",
-		"zod": "^4.1.12"
+		"ssh-config": "^5.3.0",
+		"zod": "^4.6.5"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.3.4",
+		"@biomejs/biome": "2.5.15",
 		"depcheck": "^1.4.7"
-	}
+	},
+	"packageManager": "pnpm@12.8.1+sha512.f64ba907507f5ceafe06c8d38e6052d0179444580ec1279ddd5bfc11cb48aa8a2644b66598e07e761da84872a9fc57d5f902b87fa49d024198d558612aabbe45"
 }

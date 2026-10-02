@@ -4,7 +4,7 @@ import { intro, outro, spinner, log, note } from '@clack/prompts';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { chmod, readFile, writeFile } from 'node:fs/promises';
-import SSHConfig, { parse } from 'ssh-config';
+import { SSHConfig, parse } from 'ssh-config';
 import deepEqual from 'deep-equal';
 import { ZodError } from 'zod';
 
@@ -39,7 +39,7 @@ try {
 
 const transmitSshConfigPath = join(homedir(), '.ssh', 'config.d', 'transmit');
 
-let transmitSshConfig = new SSHConfig.default();
+let transmitSshConfig = new SSHConfig();
 
 // Read existing config or create if doesn't exist
 try {
@@ -74,7 +74,7 @@ try {
 	transmitFavorites = await getTransmitFavorites();
 	fetchSpinner.stop(`Found ${transmitFavorites.length} favorite${transmitFavorites.length !== 1 ? 's' : ''}`);
 } catch (error) {
-	fetchSpinner.stop('Failed to fetch Transmit favorites', 1);
+	fetchSpinner.error('Failed to fetch Transmit favorites');
 	if (error instanceof ZodError) {
 		log.error('Invalid favorite data found:');
 		for (const issue of error.issues) {
@@ -88,7 +88,7 @@ try {
 }
 
 // Convert transmit favorites to ssh config
-const favoritesSshConfig = new SSHConfig.default();
+const favoritesSshConfig = new SSHConfig();
 favoritesSshConfig.push(...transmitFavorites.map(favoriteToSshConfig));
 
 // Write ssh config file
