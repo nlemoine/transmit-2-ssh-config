@@ -175,6 +175,9 @@ importers:
       applescript:
         specifier: ^1.0.0
         version: 1.0.0
+      bplist-parser:
+        specifier: ^0.5.0
+        version: 0.5.0
       deep-equal:
         specifier: ^2.2.3
         version: 2.2.3
@@ -374,6 +377,10 @@ packages:
 
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
+
+  bplist-parser@0.5.0:
+    resolution: {integrity: sha512-owgQ0RGbndIGNrQkpHe99HVSslIK59t31nVyAPDRqhq9mNDc2kRl5HwYO292GuKjHqiJRdJNiaI63a02hjLFIQ==}
+    engines: {node: '>=20.19.0'}
 
   brace-expansion@1.1.21:
     resolution: {integrity: sha512-9zeA+KLZNNzglF2TPKRQEDyx6Yby7daAkuy8MiPzpXPsYDWi/DRM8jmwUDxokQjYqBpv5DgPiwD4h4ZZSy1Ujw==}
@@ -1120,6 +1127,8 @@ snapshots:
       possible-typed-array-names: 1.1.0
 
   balanced-match@1.0.2: {}
+
+  bplist-parser@0.5.0: {}
 
   brace-expansion@1.1.21:
     dependencies:
