@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { chmod, readFile, writeFile } from 'node:fs/promises';
 import { SSHConfig, parse } from 'ssh-config';
-import deepEqual from 'deep-equal';
+import { isDeepStrictEqual } from 'node:util';
 import { ZodError } from 'zod';
 
 import getTransmitFavorites from './src/transmit.js';
@@ -120,7 +120,7 @@ const report = {
 			return false;
 		}
 
-		return !deepEqual(
+		return !isDeepStrictEqual(
 			normalizeFavorite(c),
 			normalizeFavorite(
 				transmitSshConfig[transmitSshConfigIds.indexOf(id)] || {},
