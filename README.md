@@ -29,14 +29,15 @@ const favorites = await getTransmitFavorites();
 
 ## Notes
 
-- Requires accessibility permissions on first run
+- Asks for permission to control Transmit on first run
+- Host aliases include the favorite folder, e.g. `client/production`
 - Only SFTP favorites are synchronized
 - Creates `~/.ssh/config` and `~/.ssh/config.d/` if they don't exist
 - Existing SSH config entries are preserved
 
 ## Caveats
 
-Folder structure extraction uses AppleScript UI scripting and may fail in edge cases. Use unique names for folders and favorites to avoid issues.
+Folders are read from Transmit's internal favorites store (`~/Library/Application Support/Transmit/Connections.transmitstore`), which is not a public format. If it can't be read, favorites are synchronized without their folder name.
 
 ## Tips
 
